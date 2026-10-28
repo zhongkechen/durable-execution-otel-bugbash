@@ -21,14 +21,16 @@ Package version strings alone may not identify an unreleased main-branch build.
 1. Install Git, Python 3.11+, a recent AWS CLI v2 with durable-execution commands,
    and a recent AWS SAM CLI supporting `DurableConfig`. Also install your chosen
    language's build tools: Node.js 22+ and npm for JS; JDK 21 and Maven for Java.
-2. Select AWS credentials and a region where Lambda Durable Execution is
+2. Select AWS credentials. Deployment and smoke tests default to **us-west-2**;
+   use `--region` to choose another region where Lambda Durable Execution is
    available. Run `aws sts get-caller-identity` to confirm the account. Deployment
    uses CloudFormation, SAM-managed artifact storage, Lambda, and IAM; your
    identity needs deployment and role-creation/pass-role permissions.
-3. Find a **versioned ADOT layer ARN** for your selected language, region, runtime,
-   and **x86_64** architecture using the release links in the language sections.
-   Keep the complete ARN, including its final numeric version. An ARM layer is
-   not compatible with these default templates.
+3. The deploy script automatically selects a **versioned ADOT layer ARN** for
+   your language and region from [`adot-layers.json`](adot-layers.json). These are
+   the latest stable release ARNs checked on October 28, 2026, with support for
+   the runtimes above and **x86_64**. Use `--layer` to override the default with a
+   compatible versioned ARN in your selected region.
 4. Choose a unique stack name, such as `youralias-otel-js`. Deployment creates
    billable resources in your account. The functions use IAM-authorized Lambda
    invocation and have no HTTP endpoint.
@@ -44,6 +46,42 @@ dependencies into ignored `.build/` directories. Build tools do not need AWS
 credentials. SDK source commits are pinned; transitive dependencies follow the
 SDK's lockfiles and package constraints and are not all independently frozen.
 
+## Region and ADOT defaults
+
+Both `deploy.py` and `smoke.py` default to **us-west-2**, independent of the AWS
+CLI's configured region. The default layer comes from the selected language and
+region; changing `--region` also selects that region's published layer version.
+
+| Language | Latest stable ADOT release checked on October 28 | Default ARN in us-west-2 |
+| --- | --- | --- |
+| JS | [v0.13.0](https://github.com/aws-observability/aws-otel-js-instrumentation/releases/tag/v0.13.0) | `arn:aws:lambda:us-west-2:615299751070:layer:AWSOpenTelemetryDistroJs:16` |
+| Python | [v0.21.0](https://github.com/aws-observability/aws-otel-python-instrumentation/releases/tag/v0.21.0) | `arn:aws:lambda:us-west-2:615299751070:layer:AWSOpenTelemetryDistroPython:36` |
+| Java | [v2.32.0](https://github.com/aws-observability/aws-otel-java-instrumentation/releases/tag/v2.32.0) | `arn:aws:lambda:us-west-2:615299751070:layer:AWSOpenTelemetryDistroJava:19` |
+
+The checked-in tables preserve the exact accounts and versions for all 35 regions
+listed by each release. They stay pinned until deliberately updated; deployment
+does not fetch a moving latest release. A listed ADOT layer does not establish
+Durable Execution availability in that region. An unlisted region requires an
+explicit `--layer`.
+
+Override just the region to use its default layer:
+
+```bash
+python3 scripts/deploy.py python --stack youralias-otel-python --region us-east-1
+python3 scripts/smoke.py --stack youralias-otel-python --region us-east-1
+```
+
+Or override both values (replace the ARN placeholder):
+
+```bash
+python3 scripts/deploy.py python --stack youralias-otel-python \
+  --region us-east-1 --layer '<custom-versioned-layer-arn-in-us-east-1>'
+```
+
+`--layer` can also be used alone to override the layer in the default `us-west-2`
+region. The deploy script prints the chosen region and ARN before deployment and
+rejects an ARN from a different region.
+
 ## JavaScript
 
 1. Confirm `node --version` reports 22 or later. Inspect
@@ -57,21 +95,16 @@ SDK's lockfiles and package constraints and are not all independently frozen.
 
    The artifact contains `index.mjs` and `node_modules`; the Lambda handler is
    `index.handler`. The template uses `nodejs22.x`.
-3. Select the matching layer from the
-   [ADOT JS releases](https://github.com/aws-observability/aws-otel-js-instrumentation/releases).
-   Substitute your exact region and ARN, then deploy:
+3. Deploy with the default region and pinned ADOT JS layer:
 
    ```bash
-   export AWS_REGION=us-west-2
-   export ADOT_LAYER_ARN='<versioned-JS-layer-ARN-for-this-region>'
-   python3 scripts/deploy.py js --stack youralias-otel-js \
-     --region "$AWS_REGION" --layer "$ADOT_LAYER_ARN"
+   python3 scripts/deploy.py js --stack youralias-otel-js
    ```
 
 4. Run both scenarios in both tracing views:
 
    ```bash
-   python3 scripts/smoke.py --stack youralias-otel-js --region "$AWS_REGION"
+   python3 scripts/smoke.py --stack youralias-otel-js
    ```
 
 5. Continue to [Verify the traces](#verify-the-traces). To edit the handler, change
@@ -92,21 +125,16 @@ SDK's lockfiles and package constraints and are not all independently frozen.
    plugin's `[standalone]` extra: the ADOT layer supplies the OTel API, SDK,
    exporter, and propagator. This avoids shadowing the layer's aligned packages.
    The core's required boto3/botocore versions are packaged with the function.
-3. Select the matching layer from the
-   [ADOT Python releases](https://github.com/aws-observability/aws-otel-python-instrumentation/releases).
-   Substitute your region and ARN, then deploy:
+3. Deploy with the default region and pinned ADOT Python layer:
 
    ```bash
-   export AWS_REGION=us-west-2
-   export ADOT_LAYER_ARN='<versioned-Python-layer-ARN-for-this-region>'
-   python3 scripts/deploy.py python --stack youralias-otel-python \
-     --region "$AWS_REGION" --layer "$ADOT_LAYER_ARN"
+   python3 scripts/deploy.py python --stack youralias-otel-python
    ```
 
 4. Run both scenarios in both views:
 
    ```bash
-   python3 scripts/smoke.py --stack youralias-otel-python --region "$AWS_REGION"
+   python3 scripts/smoke.py --stack youralias-otel-python
    ```
 
 5. Continue to [Verify the traces](#verify-the-traces). Change the source handler
@@ -134,23 +162,18 @@ SDK's lockfiles and package constraints and are not all independently frozen.
    in `JAVA_TOOL_OPTIONS`. This lets the ADOT agent install the plugin's ID and
    sampling customizers. The application registers the selected view explicitly.
    Installing the agent alone is insufficient.
-4. Select a compatible layer from the
-   [ADOT Java releases](https://github.com/aws-observability/aws-otel-java-instrumentation/releases).
-   Match its OTel API/agent compatibility to the pinned
+4. Deploy with the default region and pinned ADOT Java layer. For a custom layer,
+   check its OTel API/agent compatibility against the pinned
    [plugin README](https://github.com/aws/aws-durable-execution-sdk-java/blob/64339d4f0e071cd841bdaf43c95a35324a3132bb/otel-plugin/README.md).
-   Substitute your region and ARN, then deploy:
 
    ```bash
-   export AWS_REGION=us-west-2
-   export ADOT_LAYER_ARN='<versioned-Java-layer-ARN-for-this-region>'
-   python3 scripts/deploy.py java --stack youralias-otel-java \
-     --region "$AWS_REGION" --layer "$ADOT_LAYER_ARN"
+   python3 scripts/deploy.py java --stack youralias-otel-java
    ```
 
 5. Run both scenarios in both views:
 
    ```bash
-   python3 scripts/smoke.py --stack youralias-otel-java --region "$AWS_REGION"
+   python3 scripts/smoke.py --stack youralias-otel-java
    ```
 
 6. Continue to the trace checks below. If Lambda/platform traces appear without
@@ -168,7 +191,7 @@ rebuild and remove their own resources independently.
 - One explicit OTel factory registration in each handler. **Do not also set
   `DURABLE_EXECUTION_PLUGINS`** on these examples: that would register a second
   view. `BUG_BASH_VIEW` is this sample's selector, not an SDK setting.
-- The supplied ADOT layer, `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`,
+- The default or overridden ADOT layer, `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`,
   `OTEL_TRACES_EXPORTER=otlp`, `OTEL_PROPAGATORS=xray`, and Active tracing. The
   selected layer supplies the provider and export pipeline.
 - JSON logging, a 60-second invocation timeout, a 300-second durable execution
@@ -235,12 +258,13 @@ For success and suspension/resume checks using the real SDK local runners, see
 
 ## Cleanup
 
-Wait for executions to finish, save your evidence, and delete each test stack:
+Wait for executions to finish, save your evidence, and delete each test stack.
+Use the same region you deployed to (the default is `us-west-2`):
 
 ```bash
-sam delete --stack-name youralias-otel-js --region "$AWS_REGION"
-sam delete --stack-name youralias-otel-python --region "$AWS_REGION"
-sam delete --stack-name youralias-otel-java --region "$AWS_REGION"
+sam delete --stack-name youralias-otel-js --region us-west-2
+sam delete --stack-name youralias-otel-python --region us-west-2
+sam delete --stack-name youralias-otel-java --region us-west-2
 ```
 
 Inspect any retained CloudWatch log groups and SAM-managed artifact storage in

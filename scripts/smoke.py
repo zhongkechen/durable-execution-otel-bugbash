@@ -11,6 +11,8 @@ import uuid
 
 EXPECTED = {"success": "success", "wait-resume": "before/resumed"}
 TERMINAL = {"SUCCEEDED", "FAILED", "TIMED_OUT", "STOPPED"}
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_REGION = json.loads((ROOT / "adot-layers.json").read_text())["default_region"]
 
 
 def aws(region, *arguments):
@@ -37,12 +39,17 @@ def wait_for_result(fetch, expected, timeout, *, sleep=time.sleep, clock=time.mo
         sleep(2)
 
 
-def main():
+def create_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--stack", required=True)
-    parser.add_argument("--region", required=True)
+    parser.add_argument("--region", default=DEFAULT_REGION,
+                        help=f"AWS deployment region (default: {DEFAULT_REGION})")
     parser.add_argument("--timeout", type=int, default=360)
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = create_parser().parse_args()
     stack = aws(args.region, "cloudformation", "describe-stacks", "--stack-name", args.stack)["Stacks"][0]
     outputs = {row["OutputKey"]: row["OutputValue"] for row in stack["Outputs"]}
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
