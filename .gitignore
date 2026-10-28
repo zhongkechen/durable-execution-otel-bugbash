@@ -1,0 +1,8 @@
+.build/
+.aws-sam/
+results/
+__pycache__/
+*.pyc
+.DS_Store
+samconfig.toml
+.env

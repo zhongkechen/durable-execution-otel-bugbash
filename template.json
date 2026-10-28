@@ -1,0 +1,62 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "Durable Execution OpenTelemetry starter: two views for one language",
+  "Parameters": {
+    "AdotLayerArn": {
+      "Type": "String",
+      "Description": "Versioned ADOT layer ARN matching this language, x86_64 runtime and region"
+    }
+  },
+  "Globals": {
+    "Function": {
+      "CodeUri": "function/",
+      "Runtime": "nodejs22.x",
+      "Handler": "index.handler",
+      "Architectures": ["x86_64"],
+      "Timeout": 60,
+      "MemorySize": 512,
+      "Tracing": "Active",
+      "LoggingConfig": {"LogFormat": "JSON"},
+      "Layers": [{"Ref": "AdotLayerArn"}],
+      "DurableConfig": {"ExecutionTimeout": 300, "RetentionPeriodInDays": 1},
+      "Environment": {
+        "Variables": {
+          "AWS_LAMBDA_EXEC_WRAPPER": "/opt/otel-instrument",
+          "OTEL_TRACES_EXPORTER": "otlp",
+          "OTEL_PROPAGATORS": "xray"
+        }
+      }
+    }
+  },
+  "Resources": {
+    "ExecutionFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Policies": ["AWSLambdaBasicDurableExecutionRolePolicy", "AWSXRayDaemonWriteAccess"],
+        "Environment": {
+          "Variables": {
+            "BUG_BASH_VIEW": "execution",
+            "OTEL_SERVICE_NAME": {"Fn::Sub": "${AWS::StackName}-execution"}
+          }
+        }
+      }
+    },
+    "InvocationFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Policies": ["AWSLambdaBasicDurableExecutionRolePolicy", "AWSXRayDaemonWriteAccess"],
+        "Environment": {
+          "Variables": {
+            "BUG_BASH_VIEW": "invocation",
+            "OTEL_SERVICE_NAME": {"Fn::Sub": "${AWS::StackName}-invocation"}
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ExecutionFunctionArn": {"Value": {"Fn::GetAtt": ["ExecutionFunction", "Arn"]}},
+    "InvocationFunctionArn": {"Value": {"Fn::GetAtt": ["InvocationFunction", "Arn"]}}
+  }
+}
