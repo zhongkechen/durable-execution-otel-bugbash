@@ -122,12 +122,14 @@ def main():
     language = parser.parse_args().language
     checkout = source(language)
     output = BUILD / language / "function"
+    template = output.parent / "template.json"
+    # A failed rebuild must not leave a deployable template pointing at partial artifacts.
+    template.unlink(missing_ok=True)
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)
     settings, environment = globals()[f"build_{language}"](checkout, output)
     shutil.copy2(ROOT / "sdk-lock.json", output)
-    template = output.parent / "template.json"
     template.write_text(json.dumps(render_template(language, settings, environment), indent=2) + "\n")
     print(f"Built {language} at {LOCK[language]['commit']}\nTemplate: {template}")
 
