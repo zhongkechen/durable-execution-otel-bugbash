@@ -220,9 +220,11 @@ It does not query or assert the trace backend.
 | `{"scenario":"success"}` | `"success"` | Workflow, Invocation, `otel-success`, and its attempt |
 | `{"scenario":"wait-resume"}` | `"before/resumed"` | `otel-before-wait`, `otel-wait`, and `otel-after-resume`; resumed invocation stays on the execution trace |
 
-1. Open **CloudWatch → Traces** in the deployment region. Find the service name
-   and execution ARN from the saved evidence. Use **Group by nodes** when the
-   ungrouped X-Ray timeline obscures the hierarchy.
+1. Open **AWS Lambda** in the deployment region, open the deployed durable
+   function, then open the durable execution matching the ARN saved by the smoke
+   script. Click that execution's **X-Ray tracing** link to open its trace.
+   Repeat for the Execution-view and Invocation-view functions. Use **Group by
+   nodes** when the ungrouped X-Ray timeline obscures the hierarchy.
 2. Confirm the run was sampled. An explicit upstream `Sampled=0` takes precedence
    over local sampler settings. Rerun with a fresh execution if needed and allow
    time for backend indexing; absent spans in an unsampled run are not a failure.
