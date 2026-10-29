@@ -113,6 +113,9 @@ class DeploymentTests(unittest.TestCase):
             props = resource["Properties"]
             self.assertNotIn("FunctionUrlConfig", props)
             self.assertNotIn("Events", props)
+            # SAM injects this policy for DurableConfig; redeclaring it can
+            # produce duplicate ManagedPolicyArns after transformation.
+            self.assertNotIn("AWSLambdaBasicDurableExecutionRolePolicy", json.dumps(props.get("Policies", [])))
             views.add(props["Environment"]["Variables"]["BUG_BASH_VIEW"])
         self.assertEqual(views, {"execution", "invocation"})
 

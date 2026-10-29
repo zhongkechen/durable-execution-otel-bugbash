@@ -197,7 +197,9 @@ rebuild and remove their own resources independently.
 - JSON logging, a 60-second invocation timeout, a 300-second durable execution
   timeout, and one day of durable execution retention.
 - SAM-generated roles with `AWSLambdaBasicDurableExecutionRolePolicy` and
-  `AWSXRayDaemonWriteAccess`. The deployer needs `CAPABILITY_IAM` acknowledgement;
+  `AWSXRayDaemonWriteAccess`. SAM adds the durable policy automatically from
+  `DurableConfig`; the template only declares the additional trace-export policy
+  by its full ARN. The deployer needs `CAPABILITY_IAM` acknowledgement;
   the deploy command supplies it.
 - `BUG_BASH_SDK_COMMIT` and a packaged copy of `sdk-lock.json` for provenance.
 

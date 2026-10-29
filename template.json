@@ -33,7 +33,9 @@
     "ExecutionFunction": {
       "Type": "AWS::Serverless::Function",
       "Properties": {
-        "Policies": ["AWSLambdaBasicDurableExecutionRolePolicy", "AWSXRayDaemonWriteAccess"],
+        "Policies": [
+          {"Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"}
+        ],
         "Environment": {
           "Variables": {
             "BUG_BASH_VIEW": "execution",
@@ -45,7 +47,9 @@
     "InvocationFunction": {
       "Type": "AWS::Serverless::Function",
       "Properties": {
-        "Policies": ["AWSLambdaBasicDurableExecutionRolePolicy", "AWSXRayDaemonWriteAccess"],
+        "Policies": [
+          {"Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"}
+        ],
         "Environment": {
           "Variables": {
             "BUG_BASH_VIEW": "invocation",
